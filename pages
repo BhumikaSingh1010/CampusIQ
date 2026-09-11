@@ -1,0 +1,278 @@
+pages/1_Report_Problem.py
+import streamlit as st
+
+from database import (
+    create_database,
+    add_complaint,
+    get_descriptions
+)
+
+from ml_model import (
+    predict_category_with_confidence,
+    predict_priority,
+    recommend_department
+)
+
+from analytics import find_similar_issues
+
+
+# -----------------------------
+# Create database
+# -----------------------------
+
+create_database()
+
+
+# -----------------------------
+# Page Header
+# -----------------------------
+
+st.markdown("""
+<h1 style="
+    color: #1F2937;
+    margin: 0 0 6px 0;
+">
+📝 Report a Campus Problem
+</h1>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<p style="
+    color: #687280;
+    font-size: 16px;
+    margin: 0;
+">
+Describe the issue and CampusIQ will automatically
+analyze, prioritize and assign it.
+</p>
+""", unsafe_allow_html=True)
+
+st.divider()
+
+
+# -----------------------------
+# Problem Details
+# -----------------------------
+
+st.subheader("📋 Problem Details")
+
+
+with st.form("complaint_form"):
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        name = st.text_input(
+            "Name *",
+            placeholder="Enter your name"
+        )
+
+    with col2:
+
+        email = st.text_input(
+            "Email / Student ID",
+            placeholder="Enter email or student ID"
+        )
+
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        category = st.selectbox(
+            "Problem Category",
+            [
+                "Infrastructure",
+                "Cleanliness",
+                "Network",
+                "Electrical",
+                "Water",
+                "Security",
+                "Maintenance",
+                "Other"
+            ]
+        )
+
+    with col2:
+
+        location = st.text_input(
+            "Location *",
+            placeholder="Example: Block A, Room 204"
+        )
+
+
+    description = st.text_area(
+        "Describe the Problem *",
+        placeholder="Describe the issue in detail...",
+        height=150
+    )
+
+
+    submitted = st.form_submit_button(
+        "🚨 Submit Problem",
+        use_container_width=True
+    )
+
+
+# -----------------------------
+# Process Complaint
+# -----------------------------
+
+if submitted:
+
+    if not name or not location or not description:
+
+        st.error(
+            "⚠️ Please fill in all required fields."
+        )
+
+    else:
+
+        # -----------------------------
+        # AI Category Prediction
+        # -----------------------------
+
+        ai_category, confidence = (
+            predict_category_with_confidence(
+                description
+            )
+        )
+
+
+        # -----------------------------
+        # AI Priority Prediction
+        # -----------------------------
+
+        ai_priority = predict_priority(
+            description
+        )
+
+
+        # -----------------------------
+        # Department Recommendation
+        # -----------------------------
+
+        department = recommend_department(
+            ai_category
+        )
+
+
+        # -----------------------------
+        # Get Previous Complaints
+        # -----------------------------
+
+        existing_descriptions = get_descriptions()
+
+
+        # -----------------------------
+        # Recurring Issue Detection
+        # -----------------------------
+
+        similar_issues = find_similar_issues(
+            description,
+            existing_descriptions
+        )
+
+
+        # -----------------------------
+        # Save Complaint
+        # -----------------------------
+
+        add_complaint(
+            name,
+            email,
+            ai_category,
+            location,
+            description,
+            ai_priority,
+            department
+        )
+
+
+        st.success(
+            "✅ Problem reported successfully!"
+        )
+
+
+        # -----------------------------
+        # AI Analysis
+        # -----------------------------
+
+        st.subheader("🤖 CampusIQ Analysis")
+
+
+        col1, col2, col3, col4 = st.columns(4)
+
+
+        with col1:
+
+            st.info(
+                f"📂 **Category**\n\n"
+                f"{ai_category}"
+            )
+
+
+        with col2:
+
+            st.info(
+                f"🤖 **AI Confidence**\n\n"
+                f"{confidence}%"
+            )
+
+
+        with col3:
+
+            if ai_priority == "Critical":
+
+                st.error(
+                    f"🔴 **Priority**\n\n"
+                    f"{ai_priority}"
+                )
+
+            elif ai_priority == "High":
+
+                st.warning(
+                    f"⚡ **Priority**\n\n"
+                    f"{ai_priority}"
+                )
+
+            else:
+
+                st.info(
+                    f"⚡ **Priority**\n\n"
+                    f"{ai_priority}"
+                )
+
+
+        with col4:
+
+            st.info(
+                f"🏢 **Department**\n\n"
+                f"{department}"
+            )
+
+
+        # -----------------------------
+        # Similar / Recurring Issues
+        # -----------------------------
+
+        if similar_issues:
+
+            highest_similarity = (
+                similar_issues[0]["similarity"]
+            )
+
+            st.warning(
+                f"🔄 **Similar issue detected!**\n\n"
+                f"**{len(similar_issues)}** previous "
+                f"complaint(s) are similar.\n\n"
+                f"📊 Highest Similarity: "
+                f"**{highest_similarity}%**"
+            )
+
+        else:
+
+            st.success(
+                "🆕 No similar previous issue detected."
+            )
